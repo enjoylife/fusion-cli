@@ -43,6 +43,10 @@ const loaderIndex = {
     alias: '__SECRET_SW_LOADER__',
     path: require.resolve('./sw-loader.js'),
   },
+  stringLoader: {
+    alias: '___SECRET_STRING_LOADER___',
+    path: require.resolve('./string-loader.js'),
+  }
 };
 
 module.exports = loaderIndex;

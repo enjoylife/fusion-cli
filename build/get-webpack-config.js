@@ -35,6 +35,7 @@ const {
   syncChunkIdsLoader,
   syncChunkPathsLoader,
   swLoader,
+  stringLoader,
 } = require('./loaders/index.js');
 const {
   translationsManifestContextKey,
@@ -412,6 +413,7 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
         [chunkUrlMapLoader.alias]: chunkUrlMapLoader.path,
         [i18nManifestLoader.alias]: i18nManifestLoader.path,
         [swLoader.alias]: swLoader.path,
+        [stringLoader.alias]: stringLoader.path,
       },
     },
     plugins: [
