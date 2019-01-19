@@ -360,6 +360,12 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
           type: 'javascript/auto',
           loader: require.resolve('./loaders/json-loader.js'),
         },
+        {
+          // Blacklist .flow from the config output
+          // An example where this occurs is in the wild is https://github.com/graphql/graphiql/issues/617
+          test: /\.flow$/,
+          loader: require.resolve('./loaders/ignore-loader.js'),
+        },
         fusionConfig.assumeNoImportSideEffects && {
           sideEffects: false,
           test: modulePath => {
