@@ -15,9 +15,16 @@ const chalk = require('chalk');
 
 let loggedNotice = false;
 
-module.exports = function validateConfig(
-  dir /*: any */
-) /*: {babel?: {plugins?: Array<any>, presets?: Array<any>}, assumeNoImportSideEffects?: boolean} */ {
+/*::
+export type FusionRC = {
+  babel?: {plugins?: Array<any>, presets?: Array<any>},
+  assumeNoImportSideEffects?: boolean,
+  experimentalCompile?: boolean,
+  nodeBuiltins?: {[string]: any},
+};
+*/
+
+module.exports = function validateConfig(dir /*: string */) /*: FusionRC */ {
   const configPath = path.join(dir, '.fusionrc.js');
   let config;
   if (fs.existsSync(configPath)) {
@@ -26,7 +33,7 @@ module.exports = function validateConfig(
     if (!isValid(config)) {
       throw new Error('.fusionrc.js is invalid');
     }
-    if (!loggedNotice) {
+    if (!loggedNotice && config.babel) {
       console.log(chalk.dim('Using custom Babel config from .fusionrc.js'));
       console.warn(
         chalk.yellow(
@@ -50,7 +57,12 @@ function isValid(config) {
 
   if (
     !Object.keys(config).every(key =>
-      ['babel', 'assumeNoImportSideEffects'].includes(key)
+      [
+        'babel',
+        'assumeNoImportSideEffects',
+        'experimentalCompile',
+        'nodeBuiltins',
+      ].includes(key)
     )
   ) {
     throw new Error(`Invalid property in .fusionrc.js`);

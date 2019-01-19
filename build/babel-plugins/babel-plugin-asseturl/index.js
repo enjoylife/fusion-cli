@@ -43,9 +43,7 @@ function refsHandler(t, context, refs = []) {
     args[0].replaceWith(
       t.callExpression(t.identifier('require'), [
         t.stringLiteral(
-          `__SECRET_FILE_LOADER__?storeFile=true&storeFileTarget=node!${
-            args[0].node.value
-          }`
+          `__SECRET_FILE_LOADER__?assetUrl=true!${args[0].node.value}`
         ),
       ])
     );

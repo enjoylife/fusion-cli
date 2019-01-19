@@ -17,14 +17,16 @@ const convertCoverage = require('./convert-coverage');
 module.exports.TestAppRuntime = function(
   {
     dir = '.',
-    watch = false,
     debug = false,
     match,
     env,
-    testFolder,
+    testFolder, // deprecated
+    testMatch,
+    testRegex,
     updateSnapshot,
-    coverage,
+    collectCoverageFrom,
     configPath,
+    jestArgs = {},
   } /*: any */
 ) {
   const state = {procs: []};
@@ -39,34 +41,29 @@ module.exports.TestAppRuntime = function(
           '--inspect-brk',
           require.resolve('jest/bin/jest.js'),
           '--runInBand',
+          // --no-cache is required to allow debugging from vscode
+          '--no-cache',
         ];
       }
 
       args = args.concat(['--config', configPath]);
-
-      if (watch) {
-        args.push('--watch');
-      }
-
-      if (coverage) {
-        args.push('--coverage');
-      }
+      Object.keys(jestArgs).forEach(arg => {
+        const value = jestArgs[arg];
+        if (value && typeof value === 'boolean') {
+          args.push(`--${arg}`);
+        }
+      });
 
       if (match && match.length > 0) {
         args.push(match);
       }
 
-      if (updateSnapshot) {
-        args.push('--updateSnapshot');
-      }
-
       args.push('--verbose');
-
       return args;
     };
 
     const setup = () => {
-      if (!coverage) {
+      if (!jestArgs.coverage) {
         return Promise.resolve();
       }
 
@@ -80,10 +77,12 @@ module.exports.TestAppRuntime = function(
     const spawnProc = () => {
       return new Promise((resolve, reject) => {
         const args = getArgs();
-
         const procEnv = {
           JEST_ENV: env,
-          TEST_FOLDER: testFolder,
+          TEST_FOLDER: testFolder, // deprecated
+          TEST_MATCH: testMatch,
+          TEST_REGEX: testRegex,
+          COVERAGE_PATHS: collectCoverageFrom,
         };
         const proc = spawn('node', args, {
           cwd: rootDir,
@@ -109,7 +108,7 @@ module.exports.TestAppRuntime = function(
     };
 
     const finish = () => {
-      if (!coverage) {
+      if (!jestArgs.coverage) {
         return Promise.resolve();
       }
       return convertCoverage(rootDir);

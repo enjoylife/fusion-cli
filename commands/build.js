@@ -12,63 +12,30 @@ const winston = require('winston');
 
 const {Compiler} = require('../build/compiler.js');
 
-exports.command =
-  'build [--dir] [--test] [--cover] [--production] [--log-level]';
-exports.desc = 'Build your app';
-exports.builder = {
-  dir: {
-    type: 'string',
-    default: '.',
-    describe: 'Root path for the application relative to CLI CWD',
-  },
-  test: {
-    type: 'boolean',
-    default: false,
-    describe: 'Build test assets as well as development assets',
-  },
-  cover: {
-    type: 'boolean',
-    default: false,
-    describe: 'Build tests (with coverage) as well as development assets',
-  },
-  production: {
-    type: 'boolean',
-    default: false,
-    describe: 'Build production assets',
-  },
-  'log-level': {
-    type: 'string',
-    default: 'info',
-    describe: 'Log level to show',
-  },
-};
-
 exports.run = async function(
   {
     dir = '.',
     production,
-    test,
-    cover,
+    preserveNames,
     logLevel,
   } /*: {
     dir: string,
     production: boolean,
-    test: boolean,
-    cover: boolean,
+    preserveNames: boolean,
     logLevel: string,
   }*/
 ) {
-  const logger = new winston.Logger({
-    transports: [
-      new winston.transports.Console({colorize: true, level: logLevel}),
-    ],
+  const logger = winston.createLogger({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    ),
   });
+  logger.add(new winston.transports.Console({level: logLevel}));
 
-  const envs = [];
-  if (production) envs.push('production');
-  if (envs.length === 0) envs.push('development');
-  if (test) envs.push('test');
-  const compiler = new Compiler({envs, dir, cover, logger});
+  const env = production ? 'production' : 'development';
+
+  const compiler = new Compiler({env, dir, logger, preserveNames});
 
   await compiler.clean();
 

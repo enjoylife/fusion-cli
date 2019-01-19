@@ -8,85 +8,55 @@
 
 /* eslint-env node */
 
+const {allowedJestOptions} = require('../build/jest/cli-options');
 const {TestAppRuntime} = require('../build/test-runtime');
-
-exports.desc = 'Run browser tests, using Jest';
-exports.builder = {
-  dir: {
-    type: 'string',
-    default: '.',
-    describe: 'Root path for the application relative to CLI CWD',
-  },
-  debug: {
-    type: 'boolean',
-    default: false,
-    describe: 'Debug tests',
-  },
-  watch: {
-    type: 'boolean',
-    default: false,
-    describe: 'Automatically re-run tests on file changes',
-  },
-  match: {
-    type: 'string',
-    default: null,
-    describe: 'Runs test files that match a given string',
-  },
-  env: {
-    type: 'string',
-    default: 'jsdom,node',
-    describe:
-      'Comma-separated list of environments to run tests in. Defaults to running both node and browser tests.',
-  },
-  testFolder: {
-    type: 'string',
-    default: '__tests__',
-    describe: 'Which folder to look for tests in.',
-  },
-  updateSnapshot: {
-    type: 'boolean',
-    default: false,
-    describe: 'Updates snapshots',
-  },
-  coverage: {
-    type: 'boolean',
-    default: false,
-    describe: 'Runs test coverage',
-  },
-  configPath: {
-    type: 'string',
-    default: './node_modules/fusion-cli/build/jest/jest-config.js',
-    describe: 'Path to the jest configuration',
-  },
-};
 
 exports.run = async function(
   {
     dir = '.',
-    watch,
     debug,
     match,
     env,
-    testFolder,
-    updateSnapshot,
-    coverage,
+    testFolder, // deprecated
+    testMatch,
+    testRegex,
     configPath,
     // Allow snapshots to be updated using `-u` as well as --updateSnapshot.
     // We don't document this argument, but since jest output automatically
     // suggests this as a valid argument, we support it in case it's used.
     u,
+    updateSnapshot,
+    collectCoverageFrom,
+    // Arguments which are passed through into jest
+    ...rest
   } /*: any */
 ) {
+  const jestArgs /*: any */ = {
+    updateSnapshot: updateSnapshot || u || false,
+  };
+  allowedJestOptions.forEach(arg => {
+    if (rest[arg]) {
+      jestArgs[arg] = rest[arg];
+    }
+  });
+
+  if ([testFolder, testMatch, testRegex].filter(t => t !== '').length > 1) {
+    throw new Error(
+      'Only one of testMatch, testRegex and testFolder can be defined at one time'
+    );
+  }
+
   const testRuntime = new TestAppRuntime({
     dir,
-    watch,
     debug,
     match,
     env,
-    testFolder,
-    updateSnapshot: updateSnapshot || u,
-    coverage,
+    testFolder, // deprecated
+    testMatch,
+    testRegex,
     configPath,
+    collectCoverageFrom,
+    jestArgs,
   });
 
   // $FlowFixMe

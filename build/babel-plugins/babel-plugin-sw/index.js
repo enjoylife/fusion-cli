@@ -8,12 +8,22 @@
 
 /* eslint-env node */
 
-const replaceImportDeclaration = require('../babel-plugin-utils/replace-import-declaration');
+const createNamedModuleVisitor = require('../babel-plugin-utils/visit-named-module');
 
-module.exports = swPlugin;
+module.exports = chunkPathsPlugin;
 
-function swPlugin(babel /*: Object */) {
+function chunkPathsPlugin(babel /*: Object */) {
   const t = babel.types;
-  const visitor = replaceImportDeclaration(t, 'fusion-core');
+  const visitor = createNamedModuleVisitor(
+    t,
+    'swTemplate',
+    'fusion-cli/sw',
+    refsHandler
+  );
   return {visitor};
+}
+
+function refsHandler(t, context, refs = [], _, specifier) {
+  const declaration = specifier.parentPath;
+  declaration.set('source', t.stringLiteral('__SECRET_SW_LOADER__!'));
 }

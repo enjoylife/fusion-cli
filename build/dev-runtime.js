@@ -8,22 +8,16 @@
 
 /* eslint-env node */
 
-const url = require('url');
 const path = require('path');
 const http = require('http');
-const request = require('request');
 const EventEmitter = require('events');
 const getPort = require('get-port');
 const {spawn} = require('child_process');
 const {promisify} = require('util');
 const openUrl = require('react-dev-utils/openBrowser');
+const httpProxy = require('http-proxy');
 
 const renderError = require('./server-error').renderError;
-
-function getChildUrl(originalUrl, replacement) {
-  const parsedUrl = Object.assign(url.parse(originalUrl), replacement);
-  return url.format(parsedUrl);
-}
 
 // mechanism to allow a running proxy server to wait for a child process server to start
 function Lifecycle() {
@@ -33,6 +27,7 @@ function Lifecycle() {
   return {
     start: () => {
       state.started = true;
+      state.error = undefined;
       emitter.emit('started');
     },
     stop: () => {
@@ -68,6 +63,7 @@ type DevRuntimeType = {
   run: () => any,
   start: () => any,
   stop: () => any,
+  invalidate: () => void
 };
 */
 
@@ -84,12 +80,14 @@ module.exports.DevelopmentRuntime = function(
   const state = {
     server: null,
     proc: null,
-    childPortP: getPort(),
+    proxy: null,
   };
 
   this.run = async function reloadProc() {
-    const childPort = await state.childPortP;
+    const childPort = await getPort();
     const command = `
+      process.on('SIGTERM', () => process.exit());
+
       const fs = require('fs');
       const path = require('path');
       const chalk = require('chalk');
@@ -110,7 +108,6 @@ module.exports.DevelopmentRuntime = function(
       }
 
       const entry = path.resolve(
-        ${JSON.stringify(dir)},
         '.fusion/dist/development/server/server-main.js'
       );
 
@@ -137,10 +134,19 @@ module.exports.DevelopmentRuntime = function(
     return new Promise((resolve, reject) => {
       function handleChildServerCrash(err) {
         lifecycle.stop();
+        killProc();
         reject(err);
       }
       const args = ['-e', command];
       if (debug) args.push('--inspect-brk');
+
+      state.proxy = httpProxy.createProxyServer({
+        target: {
+          host: 'localhost',
+          port: childPort,
+        },
+      });
+
       // $FlowFixMe
       state.proc = spawn('node', args, {
         cwd: path.resolve(process.cwd(), dir),
@@ -165,6 +171,8 @@ module.exports.DevelopmentRuntime = function(
     });
   };
 
+  this.invalidate = () => lifecycle.stop();
+
   function killProc() {
     if (state.proc) {
       lifecycle.stop();
@@ -172,34 +180,53 @@ module.exports.DevelopmentRuntime = function(
       state.proc.kill();
       state.proc = null;
     }
+    if (state.proxy) {
+      state.proxy.close();
+      state.proxy = null;
+    }
   }
 
-  this.start = () => {
+  this.start = async function start() {
     // $FlowFixMe
     state.server = http.createServer((req, res) => {
       middleware(req, res, async () => {
-        const childPort = await state.childPortP;
         lifecycle.wait().then(
-          function retry() {
-            const newUrl = getChildUrl(req.url, {
-              protocol: 'http',
-              hostname: 'localhost',
-              port: childPort,
+          () => {
+            // $FlowFixMe
+            state.proxy.web(req, res, e => {
+              if (res.finished) return;
+
+              res.write(renderError(e));
+              res.end();
             });
-            const proxyReq = request(newUrl, {
-              // let the browser follow the redirect
-              followRedirect: false,
-            });
-            proxyReq.on('error', retry);
-            req.pipe(proxyReq).pipe(res);
           },
           error => {
+            if (res.finished) return;
+
             res.write(renderError(error));
             res.end();
           }
         );
       });
     });
+
+    // $FlowFixMe
+    state.server.on('upgrade', (req, socket, head) => {
+      lifecycle.wait().then(
+        () => {
+          // $FlowFixMe
+          state.proxy.ws(req, socket, head, (/*e*/) => {
+            socket.destroy();
+          });
+        },
+        () => {
+          // Destroy the socket to terminate the websocket request if the child process has issues
+          socket.destroy();
+        }
+      );
+    });
+
+    // $FlowFixMe
     const listen = promisify(state.server.listen.bind(state.server));
     return listen(port).then(() => {
       const url = `http://localhost:${port}`;

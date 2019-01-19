@@ -14,64 +14,31 @@ const {Compiler} = require('../build/compiler');
 const {DevelopmentRuntime} = require('../build/dev-runtime');
 const {TestAppRuntime} = require('../build/test-runtime');
 
-exports.command =
-  'dev [--dir] [--debug] [--test] [--cover] [--port] [--no-open] [--no-hmr] [--log-level]';
-exports.describe = 'Run your app in development';
-exports.builder = {
-  dir: {
-    type: 'string',
-    default: '.',
-    describe: 'Root path for the application relative to CLI CWD',
-  },
-  debug: {
-    type: 'boolean',
-    default: false,
-    describe: 'Debug application',
-  },
-  // TODO(#19): support dev with production assets
-  // production: {
-  //   type: 'boolean',
-  //   default: false,
-  //   describe: 'Run with production assets and NODE_ENV',
-  // },
-  port: {
-    type: 'number',
-    default: 3000,
-    describe: 'The port at which the app runs',
-  },
-  open: {
-    // yargs generates no-open option
-    type: 'boolean',
-    default: true,
-    describe: 'Run without opening the url in your browser',
-  },
-  hmr: {
-    // yargs generates no-hmr option
-    type: 'boolean',
-    default: true,
-    describe: 'Run without hot module replacement',
-  },
-  'log-level': {
-    type: 'string',
-    default: 'info',
-    describe: 'Log level to show',
-  },
-};
-
 exports.run = async function(
-  {dir = '.', test, debug, port, cover, hmr, open, logLevel} /*: any */
+  {
+    dir = '.',
+    test,
+    debug,
+    forceLegacyBuild = false,
+    port,
+    hmr,
+    open,
+    logLevel,
+  } /*: any */
 ) {
-  const logger = new winston.Logger({
-    transports: [
-      new winston.transports.Console({colorize: true, level: logLevel}),
-    ],
+  const logger = winston.createLogger({
+    format: winston.format.combine(
+      winston.format.colorize(),
+      winston.format.simple()
+    ),
   });
+  logger.add(new winston.transports.Console({level: logLevel}));
 
   const compiler = new Compiler({
-    envs: test ? ['development', 'test'] : ['development'],
+    env: 'development',
     dir,
+    forceLegacyBuild,
     watch: hmr,
-    cover,
     logger,
   });
 
@@ -102,6 +69,9 @@ exports.run = async function(
         // $FlowFixMe
         testRuntime ? testRuntime.run() : Promise.resolve(),
       ]);
+      if (!open) {
+        logger.info(`Application is running on http://localhost:${port}`);
+      }
     } catch (e) {} // eslint-disable-line
   };
 
@@ -116,14 +86,21 @@ exports.run = async function(
 
   // Rerun for each recompile
   compiler.on('done', runAll);
+  compiler.on('invalid', () => devRuntime.invalidate());
+
+  function stop() {
+    watcher.close();
+    devRuntime.stop();
+    // $FlowFixMe
+    if (testRuntime) testRuntime.stop();
+  }
+
+  process.on('SIGTERM', () => {
+    stop();
+  });
 
   return {
     compiler,
-    stop() {
-      watcher.close();
-      devRuntime.stop();
-      // $FlowFixMe
-      if (testRuntime) testRuntime.stop();
-    },
+    stop,
   };
 };

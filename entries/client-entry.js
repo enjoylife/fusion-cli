@@ -9,36 +9,23 @@
 /* eslint-env browser */
 /* global module */
 
-import 'core-js/es6';
-import 'core-js/es7';
-
-// $FlowFixMe
-import initialize from '__FRAMEWORK_SHARED_ENTRY__'; // eslint-disable-line import/no-unresolved, import/no-extraneous-dependencies
-
-/*
-Webpack has a configuration option called `publicPath`, which determines the
-base path for all assets within an application
-
-The property can be set at runtime by assigning to a magic
-global variable called `__webpack_public_path__`.
-
-We set this value at runtime because its value depends on the
-`ROUTE_PREFIX` and `CDN_URL` environment variables.
-
-The value of the env var is sent from the server to the client
-by the `../get-compilation-metadata.js` file. It creates
-a `window.__WEBPACK_PUBLIC_PATH__` global variable in the entry point html with the
-value from the environment variables above
-
-Webpack compiles the `__webpack_public_path__ = ...` assignment expression
-into `__webpack_require__.p = ...` and uses it for HMR manifest requests
-*/
-
-// $FlowFixMe
-__webpack_public_path__ = window.__WEBPACK_PUBLIC_PATH__ + '/'; /* eslint-disable-line */
+import {createPlugin, RoutePrefixToken} from 'fusion-core';
 
 function reload() {
+  // $FlowFixMe
+  const main = require('__FUSION_ENTRY_PATH__'); // eslint-disable-line
+  const initialize = main.default || main;
   Promise.resolve(initialize()).then(app => {
+    if (window.__ROUTE_PREFIX__) {
+      // No-op plugin so token can be registered without any consumers
+      // Should not be needed when route prefixing is refactored into a separate plugin
+      app.register(
+        createPlugin({
+          deps: {routePrefix: RoutePrefixToken.optional},
+        })
+      );
+      app.register(RoutePrefixToken, window.__ROUTE_PREFIX__);
+    }
     app.callback().call();
   });
 }
@@ -46,5 +33,5 @@ reload();
 
 // $FlowFixMe
 if (module.hot) {
-  module.hot.accept('__FRAMEWORK_SHARED_ENTRY__', reload);
+  module.hot.accept('__FUSION_ENTRY_PATH__', reload);
 }

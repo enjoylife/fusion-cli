@@ -8,35 +8,27 @@
 
 /* eslint-env node */
 
-// Clear require cache before each run to reset file exports between environment runs.
-// Currently the transformer seems like the most robust place to clear cache.
-Object.keys(require.cache).forEach(key => {
-  delete require.cache[key];
-});
-
 const loadFusionRC = require('../load-fusionrc.js');
-
-const babelConfig = require('../babel-preset.js')(null, {
-  targets: {
-    node: 'current',
-  },
-  modules: 'commonjs',
-  transformGlobals: false,
-});
+const getBabelConfig = require('../get-babel-config.js');
 
 const fusionConfig = loadFusionRC(process.cwd());
 
-if (!babelConfig.plugins) {
-  babelConfig.plugins = [];
+let customPlugins;
+let customPresets;
+
+if (fusionConfig.babel) {
+  customPlugins = fusionConfig.babel.plugins;
+  customPresets = fusionConfig.babel.presets;
 }
 
-babelConfig.plugins.push(require.resolve('babel-plugin-dynamic-import-node'));
-
-if (fusionConfig.babel && fusionConfig.babel.plugins) {
-  babelConfig.plugins = babelConfig.plugins.concat(
-    ...fusionConfig.babel.plugins
-  );
-}
+const babelConfig = getBabelConfig({
+  target: 'node-native',
+  specOnly: false,
+  plugins: customPlugins,
+  presets: customPresets,
+  dev: false,
+  fusionTransforms: false,
+});
 
 const transformer = require('babel-jest').createTransformer(babelConfig);
 
