@@ -34,6 +34,7 @@ const {
   syncChunkIdsLoader,
   syncChunkPathsLoader,
   swLoader,
+  stringLoader,
 } = require('./loaders/index.js');
 const {
   translationsManifestContextKey,
@@ -359,6 +360,12 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
           loader: require.resolve('./loaders/json-loader.js'),
         },
         {
+          // Blacklist .flow from the config output
+          // An example where this occurs is in the wild is https://github.com/graphql/graphiql/issues/617
+          test: /\.flow$/,
+          loader: require.resolve('./loaders/ignore-loader.js'),
+        },
+        {
           test: /\.graphql$|.gql$/,
           loader: require.resolve('graphql-tag/loader'),
         },
@@ -414,6 +421,7 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
         [chunkUrlMapLoader.alias]: chunkUrlMapLoader.path,
         [i18nManifestLoader.alias]: i18nManifestLoader.path,
         [swLoader.alias]: swLoader.path,
+        [stringLoader.alias]: stringLoader.path,
       },
     },
     plugins: [
