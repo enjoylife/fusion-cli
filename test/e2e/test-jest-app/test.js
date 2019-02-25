@@ -19,6 +19,8 @@ const runnerPath = require.resolve('../../../bin/cli-runner');
 
 const dir = path.resolve(__dirname, './fixture');
 
+jest.setTimeout(10000);
+
 test('`fusion test` passes', async () => {
   const args = `test --dir=${dir} --configPath=../../../../build/jest/jest-config.js --match=passes`;
 
@@ -258,6 +260,12 @@ test('`fusion test` coverage', async () => {
 
   // Look for something like coverage
   t.ok(response.stdout.includes('Uncovered Line #s'));
+
+  // Files in __tests__ should not be included in coverage reports
+  // Ensure that the following file exists, and is not in coverage.
+  const testFile = 'pass-node.node.js';
+  t.ok(fs.existsSync(`${__dirname}/fixture/src/__tests__/${testFile}`));
+  t.ok(!response.stdout.includes(testFile));
 
   // This file is outside of src and should not be included in coverage
   t.ok(!response.stdout.includes('should-not-count-for-coverage.js'));

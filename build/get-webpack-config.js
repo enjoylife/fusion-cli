@@ -27,7 +27,6 @@ const LoaderContextProviderPlugin = require('./plugins/loader-context-provider-p
 const ChildCompilationPlugin = require('./plugins/child-compilation-plugin.js');
 const {
   chunkIdsLoader,
-  gqlLoader,
   fileLoader,
   babelLoader,
   i18nManifestLoader,
@@ -359,6 +358,10 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
           type: 'javascript/auto',
           loader: require.resolve('./loaders/json-loader.js'),
         },
+        {
+          test: /\.graphql$|.gql$/,
+          loader: require.resolve('graphql-tag/loader'),
+        },
         fusionConfig.assumeNoImportSideEffects && {
           sideEffects: false,
           test: modulePath => {
@@ -392,7 +395,7 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
     ].filter(Boolean),
     resolve: {
       aliasFields: [
-        runtime === 'client' && 'browser',
+        (runtime === 'client' || runtime === 'sw') && 'browser',
         'es2015',
         'es2017',
       ].filter(Boolean),
@@ -404,7 +407,6 @@ function getWebpackConfig(opts /*: WebpackConfigOpts */) {
     },
     resolveLoader: {
       alias: {
-        [gqlLoader.alias]: gqlLoader.path,
         [fileLoader.alias]: fileLoader.path,
         [chunkIdsLoader.alias]: chunkIdsLoader.path,
         [syncChunkIdsLoader.alias]: syncChunkIdsLoader.path,

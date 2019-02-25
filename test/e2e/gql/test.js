@@ -4,7 +4,8 @@
 const t = require('assert');
 const path = require('path');
 const request = require('request-promise');
-const fs = require('fs');
+const {printSchema, buildASTSchema} = require('graphql/utilities');
+const {validate} = require('graphql/validation');
 
 const puppeteer = require('puppeteer');
 
@@ -24,21 +25,44 @@ test('`fusion dev` works with gql', async () => {
   const app = dev(dir);
   await app.setup();
   const url = app.url();
+
   try {
-    const expectedSchema = fs
-      .readFileSync(path.resolve(dir, 'src/schema.gql'))
-      .toString();
-    t.equal(
-      await request(`${url}/schema`),
-      expectedSchema,
-      'loads schema on server'
+    const serverSchema = buildASTSchema(
+      JSON.parse(await request(`${url}/schema`))
     );
+    const serverQuery = JSON.parse(await request(`${url}/query`));
+    expect(validate(serverSchema, serverQuery)).toHaveLength(0);
+    expect(printSchema(serverSchema)).toMatchInlineSnapshot(`
+"type Query {
+  user: User
+}
+
+type User {
+  firstName: String
+}
+"
+`);
     const page = await app.browser().newPage();
     await page.goto(`${url}/`, {waitUntil: 'load'});
-    const browserSchema = await page.evaluate(() => {
+    const browserSchema = buildASTSchema(
+      await page.evaluate(() => {
       return typeof window !== undefined && window.schema; //eslint-disable-line
+      })
+    );
+    const browserQuery = await page.evaluate(() => {
+      return typeof window !== undefined && window.query; //eslint-disable-line
     });
-    t.equal(browserSchema, expectedSchema, 'loads schema in the browser');
+    expect(validate(browserSchema, browserQuery)).toHaveLength(0);
+    expect(printSchema(browserSchema)).toMatchInlineSnapshot(`
+"type Query {
+  user: User
+}
+
+type User {
+  firstName: String
+}
+"
+`);
   } catch (e) {
     t.ifError(e);
   }
@@ -51,24 +75,47 @@ test('`fusion build --production` works with gql', async () => {
   const {proc, port} = await start(`--dir=${dir}`, {
     env: Object.assign({}, process.env, {NODE_ENV: 'production'}),
   });
+  const url = `http://localhost:${port}`;
   try {
-    const expectedSchema = fs
-      .readFileSync(path.resolve(dir, 'src/schema.gql'))
-      .toString();
-    t.equal(
-      await request(`http://localhost:${port}/schema`),
-      expectedSchema,
-      'loads schema on server'
+    const serverSchema = buildASTSchema(
+      JSON.parse(await request(`${url}/schema`))
     );
+    const serverQuery = JSON.parse(await request(`${url}/query`));
+    expect(validate(serverSchema, serverQuery)).toHaveLength(0);
+    expect(printSchema(serverSchema)).toMatchInlineSnapshot(`
+"type Query {
+  user: User
+}
+
+type User {
+  firstName: String
+}
+"
+`);
     browser = await puppeteer.launch({
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
     const page = await browser.newPage();
-    await page.goto(`http://localhost:${port}/`, {waitUntil: 'load'});
-    const browserSchema = await page.evaluate(() => {
+    await page.goto(url, {waitUntil: 'load'});
+    const browserSchema = buildASTSchema(
+      await page.evaluate(() => {
       return typeof window !== undefined && window.schema; //eslint-disable-line
+      })
+    );
+    const browserQuery = await page.evaluate(() => {
+      return typeof window !== undefined && window.query; //eslint-disable-line
     });
-    t.equal(browserSchema, expectedSchema, 'loads schema in the browser');
+    expect(validate(browserSchema, browserQuery)).toHaveLength(0);
+    expect(printSchema(browserSchema)).toMatchInlineSnapshot(`
+"type Query {
+  user: User
+}
+
+type User {
+  firstName: String
+}
+"
+`);
   } catch (e) {
     t.ifError(e);
   }
